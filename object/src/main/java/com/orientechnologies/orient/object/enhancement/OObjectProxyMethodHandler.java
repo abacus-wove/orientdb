@@ -157,9 +157,9 @@ public class OObjectProxyMethodHandler implements MethodHandler {
             }
           } else {
             ((OObjectLazyMultivalueElement<?>) value).detachAll(nonProxiedInstance, alreadyDetached, lazyObjects);
+            if (nonProxiedInstance)
+              value = ((OObjectLazyMultivalueElement<?>) value).getNonOrientInstance();
           }
-          if (nonProxiedInstance)
-            value = ((OObjectLazyMultivalueElement<?>) value).getNonOrientInstance();
         } else if (value instanceof Proxy) {
           OObjectProxyMethodHandler handler = (OObjectProxyMethodHandler) ((ProxyObject) value).getHandler();
           if (nonProxiedInstance) {
