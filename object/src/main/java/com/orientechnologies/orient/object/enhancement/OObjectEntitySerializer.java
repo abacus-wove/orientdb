@@ -508,6 +508,9 @@ public class OObjectEntitySerializer {
               if (checkCascadeDelete(oneToMany)) {
                 addCascadeDeleteField(currentClass, fieldName);
               }
+              if (checkFetchLazy(oneToMany)) {
+                addFetchLazyField(currentClass, fieldName);
+              }
             }
           }
 
@@ -518,6 +521,9 @@ public class OObjectEntitySerializer {
               ManyToMany manyToMany = ((ManyToMany) ann);
               if (checkCascadeDelete(manyToMany)) {
                 addCascadeDeleteField(currentClass, fieldName);
+              }
+              if (checkFetchLazy(manyToMany)) {
+                addFetchLazyField(currentClass, fieldName);
               }
             }
           }
@@ -686,6 +692,15 @@ public class OObjectEntitySerializer {
 
   protected static boolean checkFetchLazy(final OneToOne oneToOne) {
     return oneToOne.fetch() == FetchType.LAZY;
+  }
+
+  protected static boolean checkFetchLazy(final OneToMany oneToMany) {
+    return oneToMany.fetch() == FetchType.LAZY;
+  }
+
+  //supporting ManyToMany may be opening up a can of worms
+  protected static boolean checkFetchLazy(final ManyToMany manyToMany) {
+    return manyToMany.fetch() == FetchType.LAZY;
   }
 
   protected static void addCascadeDeleteField(Class<?> currentClass, final String fieldName) {

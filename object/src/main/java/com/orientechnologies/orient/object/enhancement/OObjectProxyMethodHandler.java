@@ -16,22 +16,6 @@
  */
 package com.orientechnologies.orient.object.enhancement;
 
-import java.lang.reflect.Array;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import javassist.util.proxy.MethodHandler;
-import javassist.util.proxy.Proxy;
-import javassist.util.proxy.ProxyObject;
-
 import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.common.reflection.OReflectionHelper;
@@ -39,13 +23,7 @@ import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
 import com.orientechnologies.orient.core.db.object.ODatabaseObject;
 import com.orientechnologies.orient.core.db.object.OObjectLazyMultivalueElement;
-import com.orientechnologies.orient.core.db.record.OIdentifiable;
-import com.orientechnologies.orient.core.db.record.ORecordLazyList;
-import com.orientechnologies.orient.core.db.record.ORecordLazyMap;
-import com.orientechnologies.orient.core.db.record.ORecordLazySet;
-import com.orientechnologies.orient.core.db.record.OTrackedList;
-import com.orientechnologies.orient.core.db.record.OTrackedMap;
-import com.orientechnologies.orient.core.db.record.OTrackedSet;
+import com.orientechnologies.orient.core.db.record.*;
 import com.orientechnologies.orient.core.exception.OSerializationException;
 import com.orientechnologies.orient.core.hook.ORecordHook.TYPE;
 import com.orientechnologies.orient.core.id.ORID;
@@ -66,6 +44,15 @@ import com.orientechnologies.orient.object.serialization.OObjectCustomSerializer
 import com.orientechnologies.orient.object.serialization.OObjectCustomSerializerMap;
 import com.orientechnologies.orient.object.serialization.OObjectCustomSerializerSet;
 import com.orientechnologies.orient.object.serialization.OObjectLazyCustomSerializer;
+import javassist.util.proxy.MethodHandler;
+import javassist.util.proxy.Proxy;
+import javassist.util.proxy.ProxyObject;
+
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.*;
 
 /**
  * @author Luca Molino (molino.luca--at--gmail.com)
@@ -162,7 +149,15 @@ public class OObjectProxyMethodHandler implements MethodHandler {
       if (field != null) {
         Object value = getValue(self, fieldName, false, null, true);
         if (value instanceof OObjectLazyMultivalueElement) {
-          ((OObjectLazyMultivalueElement<?>) value).detachAll(nonProxiedInstance, alreadyDetached, lazyObjects);
+          if(OObjectEntitySerializer.isFetchLazyField(self.getClass(),fieldName) && nonProxiedInstance) {
+            if(value instanceof List) {
+              value = detachCollectionIntoLazyCollection((Collection) value, new ArrayList<Object>(), lazyObjects);
+            } else if(value instanceof Set) {
+              value = detachCollectionIntoLazyCollection((Collection) value, new HashSet<Object>(), lazyObjects);
+            }
+          } else {
+            ((OObjectLazyMultivalueElement<?>) value).detachAll(nonProxiedInstance, alreadyDetached, lazyObjects);
+          }
           if (nonProxiedInstance)
             value = ((OObjectLazyMultivalueElement<?>) value).getNonOrientInstance();
         } else if (value instanceof Proxy) {
@@ -200,7 +195,25 @@ public class OObjectProxyMethodHandler implements MethodHandler {
     OObjectEntitySerializer.setVersionField(selfClass, self, doc.getVersion());
   }
 
-  /**
+  private Collection<Object> detachCollectionIntoLazyCollection(final Collection<?> attachedCollection, final Collection<Object> lazyCollection, final Map<Object,Object> lazyObjects) throws IllegalAccessException {
+    for(Object attached:attachedCollection) {
+      if(attached instanceof Proxy) {
+        OObjectProxyMethodHandler handler = (OObjectProxyMethodHandler) ((ProxyObject)attached).getHandler();
+        Object lazyValue = lazyObjects.get(handler.doc.getIdentity());
+        Object newValue = OObjectEntitySerializer.getNonProxiedInstance(attached);
+        if(lazyValue != null) {
+          newValue = lazyValue;
+        } else if(newValue != null) {
+          OObjectEntitySerializer.setIdField(newValue.getClass(),newValue, handler.doc.getIdentity());
+          lazyObjects.put(handler.doc.getIdentity(), newValue);
+        }
+        lazyCollection.add(newValue);
+      }
+    }
+    return lazyCollection;
+  }
+
+    /**
    * Method that attaches all data contained in the object to the associated document
    *
    *
